@@ -1,0 +1,56 @@
+name: gtd_plus
+description: "A modern GTD app with SQLite and alarm notifications."
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+ # MODIFICADO: Adicionado o novo pacote
+  awesome_notifications: ^0.10.1
+
+  # Local SQLite database
+  sqflite: ^2.3.3+1
+  path: ^1.9.0
+  
+  # Simple state management
+  provider: ^6.1.2
+  
+  # Date formatting
+  intl: ^0.20.2 
+  
+  # For stable unique IDs
+  uuid: ^4.4.0
+
+  # para editar
+  flutter_quill: ^11.4.2 # Adicione esta linha para o editor de texto
+
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+dependency_overrides:
+  intl: ^0.20.2
+
+flutter:
+  uses-material-design: true
+
+  # Make sure to create this folder and add your alarm sound file
+  assets:
+    - assets/sounds/alarm.mp3
+    - assets/images/logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  # min_sdk_android: 21 # opcional
