@@ -28,11 +28,7 @@ class CaptureSheet extends StatefulWidget {
 class _CaptureSheetState extends State<CaptureSheet> {
   final _titleController = TextEditingController();
   late GtdStatus _status;
-
   DateTime? _dueDate;
-  RecurrenceType _recurrence = RecurrenceType.none;
-  List<Duration> _reminderOffsets = [];
-  Set<int> _weeklyRecurrenceDays = {};
 
   @override
   void initState() {
@@ -43,25 +39,23 @@ class _CaptureSheetState extends State<CaptureSheet> {
   void _submit() async {
     if (_titleController.text.trim().isEmpty) return;
 
-    // MODIFICADO: Captura o Navigator e o Messenger antes do 'await'
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final service = context.read<GtdService>();
 
     if (_status == GtdStatus.calendar && _dueDate == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('Por favor, defina uma data e hora para itens do calendário.')),
+        const SnackBar(content: Text('Por favor, defina uma data para itens do calendário.')),
       );
       return;
     }
 
-    final newItem = GtdItem(
+    // ATUALIZADO: Usando o construtor correto que já define o status.
+    final newItem = GtdItem.newItem(
       title: _titleController.text.trim(),
       status: _status,
-      dueDate: _dueDate,
-      recurrence: _recurrence,
-      reminderOffsets: _reminderOffsets,
-      weeklyRecurrenceDays: _weeklyRecurrenceDays,
+    ).copyWith(
+      dueDate: _dueDate
     );
     
     try {
@@ -72,7 +66,6 @@ class _CaptureSheetState extends State<CaptureSheet> {
         const SnackBar(content: Text('Ocorreu um erro ao guardar o item.')),
       );
     } finally {
-      // Garante que a janela fecha sempre
       if (navigator.canPop()) {
         navigator.pop();
       }
@@ -166,3 +159,4 @@ class _CaptureSheetState extends State<CaptureSheet> {
     }
   }
 }
+

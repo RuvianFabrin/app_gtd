@@ -3,12 +3,10 @@ import 'package:provider/provider.dart';
 import '../data/models.dart';
 import '../logic/gtd_service.dart';
 
-// Função principal que inicia o fluxo de perguntas
 void startClarifyFlow(BuildContext context, GtdItem item) {
   _showQuestion1(context, item);
 }
 
-// Pergunta 1: É acionável?
 void _showQuestion1(BuildContext context, GtdItem item) {
   showDialog(
     context: context,
@@ -35,9 +33,9 @@ void _showQuestion1(BuildContext context, GtdItem item) {
   );
 }
 
-// Opções para itens não acionáveis
 void _showNonActionableOptions(BuildContext context, GtdItem item) {
   final service = context.read<GtdService>();
+  final navigator = Navigator.of(context);
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -50,25 +48,27 @@ void _showNonActionableOptions(BuildContext context, GtdItem item) {
             child: const Text('Apagar (Lixo)'),
             onPressed: () {
               service.deleteItem(item.id);
-              Navigator.pop(context);
+              navigator.pop();
             },
           ),
           const SizedBox(height: 8),
           ElevatedButton(
             child: const Text("Guardar em 'Algum dia'"),
             onPressed: () {
-              item.status = GtdStatus.somedayMaybe;
-              service.updateItem(item);
-              Navigator.pop(context);
+              // ATUALIZADO: Usando copyWith para imutabilidade
+              final updatedItem = item.copyWith(status: GtdStatus.somedayMaybe);
+              service.updateItem(updatedItem);
+              navigator.pop();
             },
           ),
           const SizedBox(height: 8),
           ElevatedButton(
             child: const Text("Arquivar como 'Referência'"),
             onPressed: () {
-              item.status = GtdStatus.reference;
-              service.updateItem(item);
-              Navigator.pop(context);
+              // ATUALIZADO: Usando copyWith para imutabilidade
+              final updatedItem = item.copyWith(status: GtdStatus.reference);
+              service.updateItem(updatedItem);
+              navigator.pop();
             },
           ),
         ],
@@ -77,9 +77,11 @@ void _showNonActionableOptions(BuildContext context, GtdItem item) {
   );
 }
 
-// Pergunta 2: É um projeto?
 void _showQuestion2(BuildContext context, GtdItem item) {
   final service = context.read<GtdService>();
+  final navigator = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -89,21 +91,20 @@ void _showQuestion2(BuildContext context, GtdItem item) {
         TextButton(
           child: const Text('Ação Única'),
           onPressed: () {
-            item.status = GtdStatus.nextAction;
-            service.updateItem(item);
-            Navigator.pop(context);
+            // ATUALIZADO: Usando copyWith para imutabilidade
+            final updatedItem = item.copyWith(status: GtdStatus.nextAction);
+            service.updateItem(updatedItem);
+            navigator.pop();
           },
         ),
         TextButton(
           child: const Text('É um Projeto'),
           onPressed: () {
-            // Aqui, idealmente, abriria um fluxo para criar o projeto
-            // e associar este item como a primeira tarefa.
-            // Por simplicidade, vamos apenas mover para a lista de projetos.
-            item.status = GtdStatus.projectTask;
-            service.updateItem(item);
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
+            // ATUALIZADO: Usando copyWith para imutabilidade
+            final updatedItem = item.copyWith(status: GtdStatus.projectTask);
+            service.updateItem(updatedItem);
+            navigator.pop();
+            messenger.showSnackBar(
               const SnackBar(content: Text('Item movido. Crie o projeto na aba "Projetos".')),
             );
           },

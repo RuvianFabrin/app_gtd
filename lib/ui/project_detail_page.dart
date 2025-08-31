@@ -26,12 +26,12 @@ class ProjectDetailPage extends StatelessWidget {
           TextButton(
             onPressed: () async {
               if (controller.text.isNotEmpty) {
-                // MODIFICADO: Captura o Navigator e o Service do contexto correto
                 final navigator = Navigator.of(dialogContext);
                 final service = context.read<GtdService>();
                 final messenger = ScaffoldMessenger.of(context);
 
-                final newItem = GtdItem(
+                // ATUALIZADO: Usando o construtor GtdItem.newItem
+                final newItem = GtdItem.newItem(
                   title: controller.text,
                   status: GtdStatus.projectTask,
                   project: projectId,
@@ -45,7 +45,6 @@ class ProjectDetailPage extends StatelessWidget {
                     const SnackBar(content: Text('Ocorreu um erro ao adicionar a tarefa.')),
                   );
                 } finally {
-                  // Garante que o diálogo fecha sempre
                   if (navigator.canPop()) {
                     navigator.pop();
                   }
@@ -61,18 +60,15 @@ class ProjectDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final projectTasks = context.watch<GtdService>().items.where((item) {
+    final service = context.watch<GtdService>();
+    final projectTasks = service.items.where((item) {
       return item.project == project.id &&
           (item.status == GtdStatus.projectTask || item.status == GtdStatus.done);
     }).toList();
 
     projectTasks.sort((a, b) {
-      if (a.status == GtdStatus.done && b.status != GtdStatus.done) {
-        return 1;
-      }
-      if (a.status != GtdStatus.done && b.status == GtdStatus.done) {
-        return -1;
-      }
+      if (a.status == GtdStatus.done && b.status != GtdStatus.done) return 1;
+      if (a.status != GtdStatus.done && b.status == GtdStatus.done) return -1;
       return a.createdAt.compareTo(b.createdAt);
     });
 
@@ -94,8 +90,10 @@ class ProjectDetailPage extends StatelessWidget {
                 value: isDone,
                 onChanged: (bool? value) {
                   if (value != null) {
-                    task.status = value ? GtdStatus.done : GtdStatus.projectTask;
-                    context.read<GtdService>().updateItem(task);
+                    // ATUALIZADO: Usando copyWith para imutabilidade
+                    final newStatus = value ? GtdStatus.done : GtdStatus.projectTask;
+                    final updatedTask = task.copyWith(status: newStatus);
+                    service.updateItem(updatedTask);
                   }
                 },
               ),

@@ -3,11 +3,10 @@ import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
   static const _databaseName = "GtdPlus.db";
-  // MODIFICADO: Versão incrementada para 3
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 4; // INCREMENTADO: Versão para adicionar novas colunas
 
   static const gtdItemsTable = 'gtd_items';
-  static const projectsTable = 'projects'; // NOVO: Nome da tabela de projetos
+  static const projectsTable = 'projects';
 
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -30,7 +29,6 @@ class DatabaseHelper {
   }
 
   Future _onCreate(Database db, int version) async {
-    // Cria a tabela de itens GTD
     await db.execute('''
       CREATE TABLE $gtdItemsTable (
         id TEXT PRIMARY KEY,
@@ -38,14 +36,15 @@ class DatabaseHelper {
         description TEXT,
         status INTEGER NOT NULL,
         createdAt TEXT NOT NULL,
+        lastUpdatedAt TEXT NOT NULL, -- NOVO
         dueDate TEXT,
         project TEXT,
         recurrence INTEGER,
         reminderOffsets TEXT,
-        weeklyRecurrenceDays TEXT
+        weeklyRecurrenceDays TEXT,
+        tags TEXT -- NOVO
       )
     ''');
-    // NOVO: Cria a tabela de projetos
     await db.execute('''
       CREATE TABLE $projectsTable (
         id TEXT PRIMARY KEY,
@@ -61,7 +60,6 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE $gtdItemsTable ADD COLUMN reminderOffsets TEXT');
       await db.execute('ALTER TABLE $gtdItemsTable ADD COLUMN weeklyRecurrenceDays TEXT');
     }
-    // NOVO: Script de migração para a versão 3
     if (oldVersion < 3) {
       await db.execute('''
         CREATE TABLE $projectsTable (
@@ -70,6 +68,11 @@ class DatabaseHelper {
           totalMinutesSpent INTEGER NOT NULL
         )
       ''');
+    }
+    // NOVO: Script de migração para a versão 4
+    if (oldVersion < 4) {
+      await db.execute('ALTER TABLE $gtdItemsTable ADD COLUMN lastUpdatedAt TEXT');
+      await db.execute('ALTER TABLE $gtdItemsTable ADD COLUMN tags TEXT');
     }
   }
 }

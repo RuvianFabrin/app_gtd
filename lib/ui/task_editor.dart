@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
-import 'package:intl/intl.dart';
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'package:provider/provider.dart';
 import '../data/models.dart';
 import '../logic/gtd_service.dart';
@@ -19,13 +20,17 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
   late GtdStatus _currentStatus;
+  
   DateTime? _dueDate;
   late RecurrenceType _recurrence;
   late List<Duration> _reminderOffsets;
   late Set<int> _weeklyRecurrenceDays;
 
+  late List<String> _tags;
+  final TextEditingController _tagInputController = TextEditingController();
+  List<String> _allAvailableTags = [];
   quill.QuillController? _quillController;
-  final FocusNode _editorFocusNode = FocusNode();
+  
   bool _isSaving = false;
 
   @override
@@ -34,12 +39,16 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
     _titleController = TextEditingController(text: widget.item.title);
     _descriptionController = TextEditingController(text: widget.item.description);
     _currentStatus = widget.item.status;
+    
     _dueDate = widget.item.dueDate;
     _recurrence = widget.item.recurrence;
     _reminderOffsets = List.from(widget.item.reminderOffsets);
     _weeklyRecurrenceDays = Set.from(widget.item.weeklyRecurrenceDays);
+    _tags = List.from(widget.item.tags);
 
     if (_currentStatus == GtdStatus.reference) {
+      final service = context.read<GtdService>();
+      _allAvailableTags = service.allTags.toList();
       _initializeQuillController();
     }
   }
@@ -48,8 +57,8 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _tagInputController.dispose();
     _quillController?.dispose();
-    _editorFocusNode.dispose();
     super.dispose();
   }
 
@@ -74,7 +83,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
     if (_isSaving) return;
     setState(() => _isSaving = true);
 
-    // MODIFICADO: Captura o Navigator e o Messenger antes do 'await'
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final service = context.read<GtdService>();
@@ -86,168 +94,140 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
       description = _descriptionController.text;
     }
 
-    final updatedItem = GtdItem(
-      id: widget.item.id,
+    final updatedItem = widget.item.copyWith(
       title: _titleController.text,
       description: description,
       status: _currentStatus,
       dueDate: _dueDate,
-      createdAt: widget.item.createdAt,
-      project: widget.item.project,
+      lastUpdatedAt: DateTime.now(), 
       recurrence: _recurrence,
       reminderOffsets: _reminderOffsets,
       weeklyRecurrenceDays: _weeklyRecurrenceDays,
+      tags: _tags,
     );
     
     try {
       await service.updateItem(updatedItem);
+      navigator.pop();
     } catch (e) {
-      debugPrint("Erro ao guardar o item: $e");
+      debugPrint("Erro ao salvar o item: $e");
       messenger.showSnackBar(
-        const SnackBar(content: Text('Ocorreu um erro ao guardar a nota.')),
+        const SnackBar(content: Text('Ocorreu um erro ao salvar a nota.')),
       );
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
       }
-      navigator.pop();
     }
   }
 
   void _deleteItem() async {
-    // MODIFICADO: Captura o Navigator antes do 'await'
     final navigator = Navigator.of(context);
     final service = context.read<GtdService>();
 
-    await service.deleteItem(widget.item.id);
-    if (mounted) navigator.pop();
-  }
-
-  Future<void> _selectDate() async {
-    final pickedDate = await showDatePicker(
+    final confirm = await showDialog<bool>(
       context: context,
-      initialDate: _dueDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2101),
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: const Text('Você tem certeza que deseja excluir este item?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Excluir')),
+        ],
+      )
     );
-    if (pickedDate != null) {
-      final pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(_dueDate ?? DateTime.now()),
-      );
-      if (pickedTime != null) {
-        setState(() {
-          _dueDate = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
-          );
-        });
-      }
+
+    if(confirm ?? false) {
+       await service.deleteItem(widget.item.id);
+       if (mounted) navigator.pop();
     }
   }
 
-  Widget _buildWeekDaySelector() {
-    final days = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
-    return ToggleButtons(
-      isSelected: List.generate(7, (index) => _weeklyRecurrenceDays.contains(index + 1)),
-      onPressed: (int index) {
-        setState(() {
-          final day = index + 1;
-          if (_weeklyRecurrenceDays.contains(day)) {
-            _weeklyRecurrenceDays.remove(day);
-          } else {
-            _weeklyRecurrenceDays.add(day);
-          }
-        });
-      },
-      borderRadius: BorderRadius.circular(8.0),
-      children: List.generate(7, (index) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-        child: Text(days[index]),
-      )),
-    );
+  void _addTag(String tag) {
+    final trimmedTag = tag.trim().replaceAll(',', '');
+    if (trimmedTag.isNotEmpty && !_tags.contains(trimmedTag)) {
+      setState(() {
+        _tags.add(trimmedTag);
+      });
+    }
+    _tagInputController.clear();
   }
 
-  Future<void> _addReminder() async {
-    final TextEditingController valueController = TextEditingController();
-    String unit = 'minutos';
-
-    final result = await showDialog<Duration>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Novo Lembrete'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: valueController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Valor'),
-                  ),
-                  DropdownButton<String>(
-                    value: unit,
-                    items: ['minutos', 'horas', 'dias'].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setDialogState(() {
-                        unit = newValue!;
+  Widget _buildTagEditorForAppBar() {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return _allAvailableTags.where((String option) {
+          return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+        });
+      },
+      onSelected: (String selection) {
+        _addTag(selection);
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return SizedBox(
+          height: 40,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ..._tags.map((tag) => Padding(
+                  padding: const EdgeInsets.only(right: 4.0),
+                  child: Chip(
+                    label: Text(tag),
+                    onDeleted: () {
+                      setState(() {
+                        _tags.remove(tag);
                       });
                     },
                   ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final int? value = int.tryParse(valueController.text);
-                    if (value == null || value <= 0) return;
-
-                    Duration duration;
-                    if (unit == 'minutos') {
-                      duration = Duration(minutes: value);
-                    } else if (unit == 'horas') {
-                      duration = Duration(hours: value);
-                    } else {
-                      duration = Duration(days: value);
-                    }
-                    Navigator.of(context).pop(duration);
-                  },
-                  child: const Text('Adicionar'),
+                )),
+                SizedBox(
+                  width: 150,
+                  child: RawKeyboardListener(
+                    focusNode: FocusNode(),
+                    onKey: (event) {
+                      if (event is RawKeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.comma) {
+                        _addTag(controller.text);
+                        controller.clear();
+                      }
+                    },
+                    child: TextField(
+                      controller: controller,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        hintText: 'Adicionar tag...',
+                        border: InputBorder.none,
+                        isCollapsed: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 4)
+                      ),
+                      onSubmitted: (value) {
+                        _addTag(value);
+                        onFieldSubmitted();
+                      },
+                    ),
+                  ),
                 ),
               ],
-            );
-          },
+            ),
+          ),
         );
       },
     );
-
-    if (result != null) {
-      setState(() {
-        _reminderOffsets.add(result);
-      });
-    }
   }
-
 
   @override
   Widget build(BuildContext context) {
+    bool isReference = _currentStatus == GtdStatus.reference;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Processar Item'),
+        title: isReference ? _buildTagEditorForAppBar() : const Text('Editar Item'),
+        titleSpacing: 0,
         actions: [
           IconButton(
               icon: const Icon(Icons.delete_outline), onPressed: _deleteItem),
@@ -260,36 +240,53 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-              controller: _titleController,
-              style: Theme.of(context).textTheme.titleLarge,
-              decoration: const InputDecoration(
-                labelText: 'Título',
-                border: OutlineInputBorder(),
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+              child: TextField(
+                controller: _titleController,
+                style: Theme.of(context).textTheme.headlineSmall,
+                decoration: const InputDecoration(
+                  hintText: 'Título',
+                  border: InputBorder.none,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-
-            if (_currentStatus == GtdStatus.reference && _quillController != null)
+            
+            if (isReference && _quillController != null)
               Expanded(
                 child: Column(
                   children: [
                     quill.QuillSimpleToolbar(
                       controller: _quillController!,
-                      config: const quill.QuillSimpleToolbarConfig(
+                      // CORRIGIDO: O nome do parâmetro e da classe foram ajustados.
+                      config: quill.QuillSimpleToolbarConfig(
                         multiRowsDisplay: false,
+                        embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+                        // A forma correta de passar as fontes é dentro de buttonOptions
+                        buttonOptions: const quill.QuillSimpleToolbarButtonOptions(
+                          fontFamily: quill.QuillToolbarFontFamilyButtonOptions(
+                            items: {
+                              'Inter': 'Inter',
+                              'Serif': 'Serif',
+                              'Verdana': 'Verdana',
+                            },
+                          ),
+                        ),
                       ),
                     ),
                     const Divider(),
                     Expanded(
                       child: quill.QuillEditor.basic(
                         controller: _quillController!,
-                        config: const quill.QuillEditorConfig(
-                          padding: EdgeInsets.all(8),
+                        // CORRIGIDO: O nome do parâmetro e da classe foram ajustados.
+                        config: quill.QuillEditorConfig(
+                          padding: const EdgeInsets.all(8),
+                          embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+                          //readOnly: false,
                         ),
                       ),
                     )
@@ -299,81 +296,14 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
             else
               Expanded(
                 child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: _descriptionController,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'Descrição / Notas',
-                          border: OutlineInputBorder(),
-                          alignLabelWithHint: true,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text('Organizar', style: Theme.of(context).textTheme.titleMedium),
-                      const Divider(),
-                      DropdownButtonFormField<GtdStatus>(
-                        value: _currentStatus,
-                        decoration: const InputDecoration(labelText: 'Mover para'),
-                        items: GtdStatus.values
-                            .map((status) => DropdownMenuItem(
-                                  value: status,
-                                  child: Text(_getStatusLabel(status)),
-                                ))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v == GtdStatus.reference && _quillController == null) {
-                            _initializeQuillController();
-                          }
-                          setState(() => _currentStatus = v!);
-                        }),
-                      
-                      if (_currentStatus == GtdStatus.calendar) ...[
-                        const SizedBox(height: 16),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.calendar_today),
-                          title: Text(
-                            _dueDate == null
-                                ? 'Definir data e hora'
-                                : DateFormat('dd/MM/yyyy HH:mm').format(_dueDate!),
-                          ),
-                          onTap: _selectDate,
-                          trailing: _dueDate != null ? IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() => _dueDate = null),) : null,
-                        ),
-                        const SizedBox(height: 16),
-                        DropdownButtonFormField<RecurrenceType>(
-                          value: _recurrence,
-                          decoration: const InputDecoration(labelText: 'Repetir'),
-                          items: RecurrenceType.values.map((type) => DropdownMenuItem(
-                                    value: type,
-                                    child: Text(_getRecurrenceLabel(type)),
-                                  )).toList(),
-                          onChanged: (v) => setState(() => _recurrence = v!)),
-                        if (_recurrence == RecurrenceType.weekly) ...[
-                          const SizedBox(height: 16),
-                          _buildWeekDaySelector(),
-                        ],
-                        const SizedBox(height: 24),
-                        Text('Lembretes Antecipados', style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          children: _reminderOffsets.map((offset) => Chip(
-                            label: Text(_formatDuration(offset)),
-                            onDeleted: () => setState(() => _reminderOffsets.remove(offset)),
-                          )).toList(),
-                        ),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.add_alert),
-                          label: const Text('Adicionar Lembrete'),
-                          onPressed: _addReminder,
-                        ),
-                      ]
-                    ],
+                  child: TextField(
+                    controller: _descriptionController,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      hintText: 'Descrição / Notas',
+                      border: InputBorder.none,
+                    ),
                   ),
                 ),
               ),
@@ -382,33 +312,5 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
       ),
     );
   }
-
-  String _getStatusLabel(GtdStatus status) {
-    switch (status) {
-      case GtdStatus.inbox: return 'Caixa de Entrada';
-      case GtdStatus.nextAction: return 'Próximas Ações';
-      case GtdStatus.calendar: return 'Calendário';
-      case GtdStatus.waitingFor: return 'Aguardando';
-      case GtdStatus.somedayMaybe: return 'Algum dia / Talvez';
-      case GtdStatus.projectTask: return 'Tarefa de Projeto';
-      case GtdStatus.reference: return 'Referência';
-      case GtdStatus.done: return 'Concluído';
-    }
-  }
-
-  String _getRecurrenceLabel(RecurrenceType type) {
-    switch (type) {
-      case RecurrenceType.none: return 'Não repetir';
-      case RecurrenceType.daily: return 'Diariamente';
-      case RecurrenceType.weekly: return 'Semanalmente';
-      case RecurrenceType.monthly: return 'Mensal';
-      case RecurrenceType.yearly: return 'Anual';
-    }
-  }
-
-  String _formatDuration(Duration d) {
-    if (d.inDays > 0) return '${d.inDays}d antes';
-    if (d.inHours > 0) return '${d.inHours}h antes';
-    return '${d.inMinutes}m antes';
-  }
 }
+

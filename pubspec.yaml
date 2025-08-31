@@ -29,6 +29,11 @@ dependencies:
 
   # para editar
   flutter_quill: ^11.4.2 # Adicione esta linha para o editor de texto
+  image_picker: ^1.2.0
+
+  quill_native_bridge: ^11.0.1
+  # --- NOVA FERRAMENTA PARA DESENHAR IMAGENS ---
+  flutter_quill_extensions: ^11.0.0
 
   cupertino_icons: ^1.0.6
 
@@ -48,6 +53,24 @@ flutter:
   assets:
     - assets/sounds/alarm.mp3
     - assets/images/logo.png
+    - assets/fonts/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter_18pt-Regular.ttf
+        - asset: assets/fonts/Inter_18pt-Bold.ttf
+          weight: 700
+    - family: Serif
+      fonts:
+        - asset: assets/fonts/RobotoSlab-Regular.ttf
+        - asset: assets/fonts/RobotoSlab-Bold.ttf
+          weight: 700
+    - family: Verdana
+      fonts:
+        - asset: assets/fonts/SourceSans3-Regular.ttf # Usando Inter como fallback para Verdana
+        - asset: assets/fonts/SourceSans3-Bold.ttf
+          weight: 700
 
 flutter_launcher_icons:
   android: true

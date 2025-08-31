@@ -1,47 +1,91 @@
-import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
-// MODIFICADO: Adicionado 'monthly' e 'yearly'
+// Enumerações para status e tipo de recorrência.
+enum GtdStatus { inbox, nextAction, calendar, waitingFor, somedayMaybe, projectTask, reference, done }
 enum RecurrenceType { none, daily, weekly, monthly, yearly }
 
-enum GtdStatus {
-  inbox,
-  nextAction,
-  calendar,
-  waitingFor,
-  somedayMaybe,
-  projectTask,
-  reference,
-  done
-}
-
+/// Representa um item no sistema GTD.
+@immutable
 class GtdItem {
   final String id;
-  String title;
-  String? description;
-  GtdStatus status;
-  DateTime createdAt;
-  DateTime? dueDate;
-  String? project;
-  RecurrenceType recurrence;
-  List<Duration> reminderOffsets;
-  Set<int> weeklyRecurrenceDays;
+  final String title;
+  final String? description;
+  final GtdStatus status;
+  final DateTime? dueDate;
+  final DateTime createdAt;
+  final DateTime lastUpdatedAt;
+  final String? project;
+  final RecurrenceType recurrence;
+  final List<Duration> reminderOffsets;
+  final Set<int> weeklyRecurrenceDays;
+  final List<String> tags;
 
-  GtdItem({
-    String? id,
+  const GtdItem({
+    required this.id,
     required this.title,
     this.description,
     this.status = GtdStatus.inbox,
-    DateTime? createdAt,
     this.dueDate,
+    required this.createdAt,
+    required this.lastUpdatedAt,
     this.project,
     this.recurrence = RecurrenceType.none,
+    this.reminderOffsets = const [],
+    this.weeklyRecurrenceDays = const {},
+    this.tags = const [],
+  });
+
+  // CORRIGIDO: O construtor de fábrica agora aceita status e projeto para evitar erros.
+  factory GtdItem.newItem({
+    required String title,
+    String? description,
+    GtdStatus status = GtdStatus.inbox,
+    String? project,
+  }) {
+    final now = DateTime.now();
+    return GtdItem(
+      id: const Uuid().v4(),
+      title: title,
+      description: description,
+      status: status,
+      createdAt: now,
+      lastUpdatedAt: now,
+      project: project,
+    );
+  }
+
+  GtdItem copyWith({
+    String? id,
+    String? title,
+    String? description,
+    GtdStatus? status,
+    DateTime? dueDate,
+    bool setDueDateToNull = false,
+    DateTime? createdAt,
+    DateTime? lastUpdatedAt,
+    String? project,
+    RecurrenceType? recurrence,
     List<Duration>? reminderOffsets,
     Set<int>? weeklyRecurrenceDays,
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? DateTime.now(),
-        reminderOffsets = reminderOffsets ?? [],
-        weeklyRecurrenceDays = weeklyRecurrenceDays ?? {};
+    List<String>? tags,
+  }) {
+    return GtdItem(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      status: status ?? this.status,
+      dueDate: setDueDateToNull ? null : dueDate ?? this.dueDate,
+      createdAt: createdAt ?? this.createdAt,
+      lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      project: project ?? this.project,
+      recurrence: recurrence ?? this.recurrence,
+      reminderOffsets: reminderOffsets ?? this.reminderOffsets,
+      weeklyRecurrenceDays: weeklyRecurrenceDays ?? this.weeklyRecurrenceDays,
+      tags: tags ?? this.tags,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -50,12 +94,13 @@ class GtdItem {
       'description': description,
       'status': status.index,
       'createdAt': createdAt.toIso8601String(),
+      'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'dueDate': dueDate?.toIso8601String(),
       'project': project,
       'recurrence': recurrence.index,
-      'reminderOffsets':
-          jsonEncode(reminderOffsets.map((d) => d.inMinutes).toList()),
+      'reminderOffsets': jsonEncode(reminderOffsets.map((d) => d.inMinutes).toList()),
       'weeklyRecurrenceDays': jsonEncode(weeklyRecurrenceDays.toList()),
+      'tags': jsonEncode(tags),
     };
   }
 
@@ -66,6 +111,7 @@ class GtdItem {
       description: map['description'],
       status: GtdStatus.values[map['status']],
       createdAt: DateTime.parse(map['createdAt']),
+      lastUpdatedAt: DateTime.parse(map['lastUpdatedAt'] ?? map['createdAt']),
       dueDate: map['dueDate'] != null ? DateTime.parse(map['dueDate']) : null,
       project: map['project'],
       recurrence: RecurrenceType.values[map['recurrence'] ?? 0],
@@ -75,10 +121,9 @@ class GtdItem {
               .toList()
           : [],
       weeklyRecurrenceDays: map['weeklyRecurrenceDays'] != null
-          ? (jsonDecode(map['weeklyRecurrenceDays']) as List)
-              .cast<int>()
-              .toSet()
+          ? (jsonDecode(map['weeklyRecurrenceDays']) as List).cast<int>().toSet()
           : {},
+      tags: map['tags'] != null ? (jsonDecode(map['tags']) as List).cast<String>().toList() : [],
     );
   }
 }
@@ -110,3 +155,4 @@ class Project {
     );
   }
 }
+

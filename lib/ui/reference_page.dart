@@ -1,41 +1,192 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../data/models.dart';
 import '../logic/gtd_service.dart';
 import 'gtd_pages.dart'; // Reutiliza o GtdItemListView
 
-class ReferencePage extends StatelessWidget {
+// Enum para opções de ordenação
+enum SortOption { title, date }
+
+class ReferencePage extends StatefulWidget {
   const ReferencePage({super.key});
 
   @override
+  State<ReferencePage> createState() => _ReferencePageState();
+}
+
+class _ReferencePageState extends State<ReferencePage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  SortOption _sortOption = SortOption.date;
+  bool _isAscending = false; // false = mais novo para mais velho / Z-A
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final items = context.watch<GtdService>().referenceItems;
-    
-    return GtdItemListView(
-      items: items,
-      emptyListMessage: "Nenhum item de referência guardado.",
-      subtitleBuilder: (item) {
-        if (item.description == null || item.description!.isEmpty) {
-          return null;
-        }
-        try {
-          // Tenta converter o JSON do editor para texto simples
-          final doc = quill.Document.fromJson(jsonDecode(item.description!));
-          return Text(
-            doc.toPlainText().replaceAll('\n', ' '), // Mostra como uma única linha
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          );
-        } catch (e) {
-          // Se não for JSON, mostra o texto normal
-          return Text(
-            item.description!,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          );
-        }
-      },
+    final service = context.watch<GtdService>();
+    final items = _getFilteredAndSortedItems(service.referenceItems);
+
+    return Column(
+      children: [
+        // Seção de Pesquisa e Ordenação
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  labelText: 'Pesquisar por título, texto ou tag',
+                  prefixIcon: const Icon(Icons.search),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () => _searchController.clear(),
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Botões para escolher o critério de ordenação
+                  SegmentedButton<SortOption>(
+                    segments: const [
+                      ButtonSegment(value: SortOption.date, label: Text('Data'), icon: Icon(Icons.date_range)),
+                      ButtonSegment(value: SortOption.title, label: Text('Título'), icon: Icon(Icons.title)),
+                    ],
+                    selected: {_sortOption},
+                    onSelectionChanged: (newSelection) {
+                      setState(() {
+                        _sortOption = newSelection.first;
+                      });
+                    },
+                  ),
+                  // Botão para alternar a direção da ordenação
+                  IconButton(
+                    icon: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward),
+                    onPressed: () {
+                      setState(() {
+                        _isAscending = !_isAscending;
+                      });
+                    },
+                    tooltip: 'Inverter ordem',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        // Lista de itens
+        Expanded(
+          child: GtdItemListView(
+            items: items,
+            emptyListMessage: "Nenhum item de referência encontrado.",
+            subtitleBuilder: (item) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildContentSubtitle(item),
+                  const SizedBox(height: 8),
+                  if (item.tags.isNotEmpty)
+                    Wrap(
+                      spacing: 6.0,
+                      runSpacing: 4.0,
+                      children: item.tags.map((tag) => Chip(
+                        label: Text(tag),
+                        labelStyle: const TextStyle(fontSize: 10),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      )).toList(),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Atualizado: ${DateFormat('dd/MM/yy HH:mm').format(item.lastUpdatedAt)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
+
+  // Constrói o subtítulo a partir da descrição
+  Widget _buildContentSubtitle(GtdItem item) {
+    if (item.description == null || item.description!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    try {
+      final doc = quill.Document.fromJson(jsonDecode(item.description!));
+      final plainText = doc.toPlainText().replaceAll('\n', ' ').trim();
+      return Text(
+        plainText,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      );
+    } catch (e) {
+      return Text(
+        item.description!,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+  }
+
+  // Retorna a lista de itens filtrada e ordenada
+  List<GtdItem> _getFilteredAndSortedItems(List<GtdItem> allItems) {
+    final filteredItems = _searchQuery.isEmpty
+        ? allItems
+        : allItems.where((item) {
+            final titleMatch = item.title.toLowerCase().contains(_searchQuery);
+            final contentMatch = _getContentForSearch(item).contains(_searchQuery);
+            final tagMatch = item.tags.any((tag) => tag.toLowerCase().contains(_searchQuery));
+            return titleMatch || contentMatch || tagMatch;
+          }).toList();
+
+    filteredItems.sort((a, b) {
+      int comparison;
+      if (_sortOption == SortOption.title) {
+        comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      } else {
+        comparison = a.lastUpdatedAt.compareTo(b.lastUpdatedAt);
+      }
+      return _isAscending ? comparison : -comparison;
+    });
+
+    return filteredItems;
+  }
+  
+  String _getContentForSearch(GtdItem item) {
+    if (item.description == null || item.description!.isEmpty) return '';
+    try {
+       final doc = quill.Document.fromJson(jsonDecode(item.description!));
+       return doc.toPlainText().toLowerCase();
+    } catch(e) {
+      return item.description!.toLowerCase();
+    }
+  }
 }
+

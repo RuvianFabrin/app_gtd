@@ -6,6 +6,7 @@ import '../logic/gtd_service.dart';
 import 'clarify_flow.dart';
 import 'task_editor.dart';
 
+/// Um widget reutilizável para exibir uma lista de itens GTD.
 class GtdItemListView extends StatelessWidget {
   final List<GtdItem> items;
   final String emptyListMessage;
@@ -44,8 +45,7 @@ class GtdItemListView extends StatelessWidget {
             subtitle: subtitleBuilder != null
                 ? subtitleBuilder!(item)
                 : (item.description != null && item.description!.isNotEmpty
-                    ? Text(item.description!,
-                        maxLines: 1, overflow: TextOverflow.ellipsis)
+                    ? Text(item.description!, maxLines: 1, overflow: TextOverflow.ellipsis)
                     : null),
             onTap: () {
               if (item.status == GtdStatus.inbox) {
@@ -53,8 +53,7 @@ class GtdItemListView extends StatelessWidget {
               } else {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) => TaskEditorScreen(item: item)),
+                  MaterialPageRoute(builder: (context) => TaskEditorScreen(item: item)),
                 );
               }
             },
@@ -74,8 +73,7 @@ class InboxPage extends StatelessWidget {
     final items = context.watch<GtdService>().inboxItems;
     return GtdItemListView(
         items: items,
-        emptyListMessage:
-            "Caixa de entrada vazia!\nClique num item para o processar.");
+        emptyListMessage: "Caixa de entrada vazia!\nClique em um item para processá-lo.");
   }
 }
 
@@ -84,31 +82,25 @@ class NextActionsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = context.watch<GtdService>().nextActionsItems;
-    return GtdItemListView(
-        items: items, emptyListMessage: "Nenhuma próxima ação definida.");
+    return GtdItemListView(items: items, emptyListMessage: "Nenhuma próxima ação definida.");
   }
 }
 
 class CalendarPage extends StatelessWidget {
   const CalendarPage({super.key});
 
-  // MODIFICADO: Adiciona os textos para mensal e anual
   String _formatRecurrence(GtdItem item) {
     switch (item.recurrence) {
-      case RecurrenceType.none:
-        return '';
-      case RecurrenceType.daily:
-        return 'Repete: Diariamente';
+      case RecurrenceType.none: return '';
+      case RecurrenceType.daily: return 'Repete: Diariamente';
       case RecurrenceType.weekly:
         if (item.weeklyRecurrenceDays.isEmpty) return 'Repete: Semanalmente';
         final days = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
         final sortedDays = item.weeklyRecurrenceDays.toList()..sort();
         final selectedDays = sortedDays.map((d) => days[d - 1]).join(', ');
         return 'Repete: $selectedDays';
-      case RecurrenceType.monthly:
-        return 'Repete: Mensalmente';
-      case RecurrenceType.yearly:
-        return 'Repete: Anualmente';
+      case RecurrenceType.monthly: return 'Repete: Mensalmente';
+      case RecurrenceType.yearly: return 'Repete: Anualmente';
     }
   }
 
@@ -119,33 +111,29 @@ class CalendarPage extends StatelessWidget {
       if (d.inHours > 0) return '${d.inHours}h';
       return '${d.inMinutes}m';
     }).join(', ');
-    return 'Alertas: $reminders antes';
+    return 'Lembretes: $reminders antes';
   }
 
   Widget _buildSubtitle(BuildContext context, GtdItem item) {
     if (item.dueDate == null) return const SizedBox.shrink();
 
-    final formattedDate =
-        DateFormat("dd/MM/yyyy 'às' HH:mm").format(item.dueDate!);
+    final formattedDate = DateFormat("dd/MM/yyyy 'às' HH:mm").format(item.dueDate!);
     final recurrenceInfo = _formatRecurrence(item);
     final remindersInfo = _formatReminders(item);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(formattedDate,
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(formattedDate, style: const TextStyle(fontWeight: FontWeight.bold)),
         if (recurrenceInfo.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2.0),
-            child: Text(recurrenceInfo,
-                style: Theme.of(context).textTheme.bodySmall),
+            child: Text(recurrenceInfo, style: Theme.of(context).textTheme.bodySmall),
           ),
         if (remindersInfo.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 2.0),
-            child: Text(remindersInfo,
-                style: Theme.of(context).textTheme.bodySmall),
+            child: Text(remindersInfo, style: Theme.of(context).textTheme.bodySmall),
           ),
       ],
     );
@@ -161,7 +149,7 @@ class CalendarPage extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(16.0),
           child: Text(
-            "Nenhum item agendado.\nLembre-se de definir uma data e hora.",
+            "Nenhum item agendado.\nDefina uma data e hora para seus compromissos.",
             textAlign: TextAlign.center,
           ),
         ),
@@ -195,16 +183,14 @@ class CalendarPage extends StatelessWidget {
               itemBuilder: (context, itemIndex) {
                 final item = itemsInGroup[itemIndex];
                 return Card(
-                  margin:
-                      const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                   child: ListTile(
                     title: Text(item.title),
                     subtitle: _buildSubtitle(context, item),
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                            builder: (context) => TaskEditorScreen(item: item)),
+                        MaterialPageRoute(builder: (context) => TaskEditorScreen(item: item)),
                       );
                     },
                   ),
@@ -223,8 +209,7 @@ class WaitingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = context.watch<GtdService>().waitingForItems;
-    return GtdItemListView(
-        items: items, emptyListMessage: "Não está a aguardar por nada.");
+    return GtdItemListView(items: items, emptyListMessage: "Você não está aguardando por nada.");
   }
 }
 
@@ -233,8 +218,7 @@ class SomedayPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = context.watch<GtdService>().somedayMaybeItems;
-    return GtdItemListView(
-        items: items, emptyListMessage: "A lista 'Algum dia' está vazia.");
+    return GtdItemListView(items: items, emptyListMessage: "A lista 'Algum dia/Talvez' está vazia.");
   }
 }
 
