@@ -143,7 +143,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
     }
   }
 
-  // MODIFICADO: A função agora não limpa mais o controller.
   void _addTag(String tag) {
     final trimmedTag = tag.trim().replaceAll(',', '');
     if (trimmedTag.isNotEmpty && !_tags.contains(trimmedTag)) {
@@ -163,11 +162,8 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
           return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
         });
       },
-      // onSelected agora apenas preenche o campo, não cadastra a tag.
-      // O usuário confirma com vírgula ou Enter.
       onSelected: (String selection) {
-         // Esta função é chamada quando o usuário seleciona um item da lista.
-         // O Autocomplete preenche o campo de texto com a 'selection'.
+        // This is handled by onSubmitted or the comma key press
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
         return SizedBox(
@@ -196,7 +192,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
                       if (event is RawKeyDownEvent &&
                           event.logicalKey == LogicalKeyboardKey.comma) {
                         _addTag(controller.text);
-                        // MODIFICADO: Limpa o controller aqui.
                         controller.clear();
                       }
                     },
@@ -211,7 +206,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
                       ),
                       onSubmitted: (value) {
                         _addTag(value);
-                        // MODIFICADO: Limpa o controller aqui também.
                         controller.clear();
                         onFieldSubmitted();
                       },
@@ -229,6 +223,8 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
   @override
   Widget build(BuildContext context) {
     bool isReference = _currentStatus == GtdStatus.reference;
+    // Pega a cor padrão do texto do tema atual.
+    final defaultTextColor = Theme.of(context).textTheme.bodyMedium?.color;
 
     return Scaffold(
       appBar: AppBar(
@@ -245,7 +241,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
               : IconButton(icon: const Icon(Icons.save), onPressed: _saveChanges),
         ],
       ),
-      // MODIFICADO: A estrutura do corpo foi alterada.
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -268,15 +263,12 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
             ),
             const Divider(height: 1),
           ],
-
-          // O corpo agora é um Expanded para que o editor Quill preencha o espaço restante.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // MODIFICADO: O título fica aqui, abaixo da barra de ferramentas.
                   Padding(
                     padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
                     child: TextField(
@@ -294,14 +286,26 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
                       child: quill.QuillEditor.basic(
                         controller: _quillController!,
                         config: quill.QuillEditorConfig(
-                          padding:const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(8),
                           embedBuilders: FlutterQuillEmbeds.editorBuilders(),
-                          //readOnly: false,
+                          // CORRIGIDO: Define a cor do texto com base no tema.
+                          customStyles: quill.DefaultStyles(
+                            paragraph: quill.DefaultTextBlockStyle(
+                              TextStyle(
+                                fontSize: 16,
+                                fontFamily: 'Inter',
+                                color: defaultTextColor, // Usa a cor do tema
+                              ),
+                              const quill.HorizontalSpacing(0, 0),
+                              const quill.VerticalSpacing(0, 0),
+                              const quill.VerticalSpacing(0, 0),
+                              null,
+                            ),
+                          ),
                         ),
                       ),
                     )
                   else
-                    // O campo de descrição para outros tipos de itens.
                     Expanded(
                       child: SingleChildScrollView(
                         child: TextField(
