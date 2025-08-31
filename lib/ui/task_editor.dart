@@ -143,6 +143,7 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
     }
   }
 
+  // MODIFICADO: A função agora não limpa mais o controller.
   void _addTag(String tag) {
     final trimmedTag = tag.trim().replaceAll(',', '');
     if (trimmedTag.isNotEmpty && !_tags.contains(trimmedTag)) {
@@ -150,7 +151,6 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
         _tags.add(trimmedTag);
       });
     }
-    _tagInputController.clear();
   }
 
   Widget _buildTagEditorForAppBar() {
@@ -163,8 +163,11 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
           return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
         });
       },
+      // onSelected agora apenas preenche o campo, não cadastra a tag.
+      // O usuário confirma com vírgula ou Enter.
       onSelected: (String selection) {
-        _addTag(selection);
+         // Esta função é chamada quando o usuário seleciona um item da lista.
+         // O Autocomplete preenche o campo de texto com a 'selection'.
       },
       fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
         return SizedBox(
@@ -193,6 +196,7 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
                       if (event is RawKeyDownEvent &&
                           event.logicalKey == LogicalKeyboardKey.comma) {
                         _addTag(controller.text);
+                        // MODIFICADO: Limpa o controller aqui.
                         controller.clear();
                       }
                     },
@@ -207,6 +211,8 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
                       ),
                       onSubmitted: (value) {
                         _addTag(value);
+                        // MODIFICADO: Limpa o controller aqui também.
+                        controller.clear();
                         onFieldSubmitted();
                       },
                     ),
@@ -239,76 +245,81 @@ class _TaskEditorScreenState extends State<TaskEditorScreen> {
               : IconButton(icon: const Icon(Icons.save), onPressed: _saveChanges),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-              child: TextField(
-                controller: _titleController,
-                style: Theme.of(context).textTheme.headlineSmall,
-                decoration: const InputDecoration(
-                  hintText: 'Título',
-                  border: InputBorder.none,
+      // MODIFICADO: A estrutura do corpo foi alterada.
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isReference && _quillController != null) ...[
+            quill.QuillSimpleToolbar(
+              controller: _quillController!,
+              config: quill.QuillSimpleToolbarConfig(
+                multiRowsDisplay: false,
+                embedButtons: FlutterQuillEmbeds.toolbarButtons(),
+                buttonOptions: const quill.QuillSimpleToolbarButtonOptions(
+                  fontFamily: quill.QuillToolbarFontFamilyButtonOptions(
+                    items: {
+                      'Inter': 'Inter',
+                      'Serif': 'Serif',
+                      'Verdana': 'Verdana',
+                    },
+                  ),
                 ),
               ),
             ),
-            
-            if (isReference && _quillController != null)
-              Expanded(
-                child: Column(
-                  children: [
-                    quill.QuillSimpleToolbar(
-                      controller: _quillController!,
-                      // CORRIGIDO: O nome do parâmetro e da classe foram ajustados.
-                      config: quill.QuillSimpleToolbarConfig(
-                        multiRowsDisplay: false,
-                        embedButtons: FlutterQuillEmbeds.toolbarButtons(),
-                        // A forma correta de passar as fontes é dentro de buttonOptions
-                        buttonOptions: const quill.QuillSimpleToolbarButtonOptions(
-                          fontFamily: quill.QuillToolbarFontFamilyButtonOptions(
-                            items: {
-                              'Inter': 'Inter',
-                              'Serif': 'Serif',
-                              'Verdana': 'Verdana',
-                            },
-                          ),
-                        ),
+            const Divider(height: 1),
+          ],
+
+          // O corpo agora é um Expanded para que o editor Quill preencha o espaço restante.
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // MODIFICADO: O título fica aqui, abaixo da barra de ferramentas.
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+                    child: TextField(
+                      controller: _titleController,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      decoration: const InputDecoration(
+                        hintText: 'Título',
+                        border: InputBorder.none,
                       ),
                     ),
-                    const Divider(),
+                  ),
+                  
+                  if (isReference && _quillController != null)
                     Expanded(
                       child: quill.QuillEditor.basic(
                         controller: _quillController!,
-                        // CORRIGIDO: O nome do parâmetro e da classe foram ajustados.
                         config: quill.QuillEditorConfig(
-                          padding: const EdgeInsets.all(8),
+                          padding:const EdgeInsets.all(8),
                           embedBuilders: FlutterQuillEmbeds.editorBuilders(),
                           //readOnly: false,
                         ),
                       ),
                     )
-                  ],
-                ),
-              )
-            else
-              Expanded(
-                child: SingleChildScrollView(
-                  child: TextField(
-                    controller: _descriptionController,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    decoration: const InputDecoration(
-                      hintText: 'Descrição / Notas',
-                      border: InputBorder.none,
+                  else
+                    // O campo de descrição para outros tipos de itens.
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: TextField(
+                          controller: _descriptionController,
+                          maxLines: null,
+                          keyboardType: TextInputType.multiline,
+                          decoration: const InputDecoration(
+                            hintText: 'Descrição / Notas',
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
