@@ -6,6 +6,10 @@ import 'capture_sheet.dart';
 import 'gtd_pages.dart';
 import 'projects_page.dart';
 import 'reference_page.dart';
+import 'next_actions_page.dart';
+import 'calendar_page.dart';
+import 'waiting_page.dart';
+import 'someday_page.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  // CORRIGIDO: Usa as novas páginas com busca e ordenação.
   static const List<Widget> _widgetOptions = <Widget>[
     InboxPage(),
     NextActionsPage(),
@@ -112,7 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // MODIFICADO: O Row com o logótipo foi removido
         title: Text(_appBarTitles[_selectedIndex]),
         centerTitle: true,
         actions: [
@@ -193,3 +197,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+

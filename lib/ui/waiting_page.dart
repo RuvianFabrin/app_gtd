@@ -5,23 +5,23 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../data/models.dart';
 import '../logic/gtd_service.dart';
-import 'project_detail_page.dart';
-import 'project_editor.dart';
+import 'gtd_pages.dart'; // Reutiliza o GtdItemListView
 
+// Enum para opções de ordenação
 enum SortOption { title, date }
 
-class ProjectsPage extends StatefulWidget {
-  const ProjectsPage({super.key});
+class WaitingPage extends StatefulWidget {
+  const WaitingPage({super.key});
 
   @override
-  State<ProjectsPage> createState() => _ProjectsPageState();
+  State<WaitingPage> createState() => _WaitingPageState();
 }
 
-class _ProjectsPageState extends State<ProjectsPage> {
+class _WaitingPageState extends State<WaitingPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   SortOption _sortOption = SortOption.date;
-  bool _isAscending = false;
+  bool _isAscending = false; // false = mais novo para mais velho / Z-A
 
   @override
   void initState() {
@@ -42,10 +42,11 @@ class _ProjectsPageState extends State<ProjectsPage> {
   @override
   Widget build(BuildContext context) {
     final service = context.watch<GtdService>();
-    final projects = _getFilteredAndSortedItems(service.projects);
+    final items = _getFilteredAndSortedItems(service.waitingForItems);
 
     return Column(
       children: [
+        // Seção de Pesquisa e Ordenação
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
@@ -53,7 +54,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  labelText: 'Pesquisar projetos...',
+                  labelText: 'Pesquisar por título, texto ou tag',
                   prefixIcon: const Icon(Icons.search),
                   border: const OutlineInputBorder(),
                   suffixIcon: _searchQuery.isNotEmpty
@@ -94,43 +95,34 @@ class _ProjectsPageState extends State<ProjectsPage> {
             ],
           ),
         ),
+        // Lista de itens
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 80),
-            itemCount: projects.length,
-            itemBuilder: (context, index) {
-              final project = projects[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                child: ListTile(
-                  title: Text(project.name),
-                  subtitle: _buildSubtitle(context, project),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.playlist_play_rounded),
-                        onPressed: () {
-                           Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ProjectDetailPage(project: project),
-                            ),
-                          );
-                        },
-                        tooltip: 'Ver tarefas do projeto',
-                      ),
-                    ],
+          child: GtdItemListView(
+            items: items,
+            emptyListMessage: "Nenhum item 'Aguardando' encontrado.",
+            subtitleBuilder: (item) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildContentSubtitle(item),
+                  const SizedBox(height: 8),
+                  if (item.tags.isNotEmpty)
+                    Wrap(
+                      spacing: 6.0,
+                      runSpacing: 4.0,
+                      children: item.tags.map((tag) => Chip(
+                        label: Text(tag),
+                        labelStyle: const TextStyle(fontSize: 10),
+                        padding: EdgeInsets.zero,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      )).toList(),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Atualizado: ${DateFormat('dd/MM/yy HH:mm').format(item.lastUpdatedAt)}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  onTap: () {
-                     Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ProjectEditorScreen(project: project),
-                      ),
-                    );
-                  },
-                ),
+                ],
               );
             },
           ),
@@ -139,43 +131,13 @@ class _ProjectsPageState extends State<ProjectsPage> {
     );
   }
 
-  Widget _buildSubtitle(BuildContext context, Project project) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildContentSubtitle(project),
-        const SizedBox(height: 8),
-        if (project.tags.isNotEmpty)
-          Wrap(
-            spacing: 6.0,
-            runSpacing: 4.0,
-            children: project.tags
-                .map((tag) => Chip(
-                      label: Text(tag),
-                      labelStyle: const TextStyle(fontSize: 10),
-                      padding: EdgeInsets.zero,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ))
-                .toList(),
-          ),
-        const SizedBox(height: 4),
-        Text(
-          'Atualizado: ${DateFormat('dd/MM/yy HH:mm').format(project.lastUpdatedAt)}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    );
-  }
-
-  // CORRIGIDO: Lógica de exibição do resumo do Quill ajustada
-  Widget _buildContentSubtitle(Project project) {
-    if (project.description == null || project.description!.isEmpty) {
+  Widget _buildContentSubtitle(GtdItem item) {
+    if (item.description == null || item.description!.isEmpty) {
       return const SizedBox.shrink();
     }
     try {
-      final doc = quill.Document.fromJson(jsonDecode(project.description!));
+      final doc = quill.Document.fromJson(jsonDecode(item.description!));
       final plainText = doc.toPlainText().replaceAll('\n', ' ').trim();
-      if (plainText.isEmpty) return const SizedBox.shrink();
       return Text(
         plainText,
         maxLines: 2,
@@ -183,28 +145,27 @@ class _ProjectsPageState extends State<ProjectsPage> {
       );
     } catch (e) {
       return Text(
-        project.description!,
+        item.description!,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       );
     }
   }
 
-  List<Project> _getFilteredAndSortedItems(List<Project> allItems) {
+  List<GtdItem> _getFilteredAndSortedItems(List<GtdItem> allItems) {
     final filteredItems = _searchQuery.isEmpty
         ? allItems
         : allItems.where((item) {
-            final titleMatch = item.name.toLowerCase().contains(_searchQuery);
+            final titleMatch = item.title.toLowerCase().contains(_searchQuery);
             final contentMatch = _getContentForSearch(item).contains(_searchQuery);
-            final tagMatch =
-                item.tags.any((tag) => tag.toLowerCase().contains(_searchQuery));
+            final tagMatch = item.tags.any((tag) => tag.toLowerCase().contains(_searchQuery));
             return titleMatch || contentMatch || tagMatch;
           }).toList();
 
     filteredItems.sort((a, b) {
       int comparison;
       if (_sortOption == SortOption.title) {
-        comparison = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
       } else {
         comparison = a.lastUpdatedAt.compareTo(b.lastUpdatedAt);
       }
@@ -213,14 +174,13 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
     return filteredItems;
   }
-
-  // CORRIGIDO: Lógica de extração de texto do Quill para busca ajustada
-  String _getContentForSearch(Project item) {
+  
+  String _getContentForSearch(GtdItem item) {
     if (item.description == null || item.description!.isEmpty) return '';
     try {
-      final doc = quill.Document.fromJson(jsonDecode(item.description!));
-      return doc.toPlainText().toLowerCase();
-    } catch (e) {
+       final doc = quill.Document.fromJson(jsonDecode(item.description!));
+       return doc.toPlainText().toLowerCase();
+    } catch(e) {
       return item.description!.toLowerCase();
     }
   }

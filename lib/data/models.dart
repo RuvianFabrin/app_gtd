@@ -37,13 +37,7 @@ class GtdItem {
     this.tags = const [],
   });
 
-  // CORRIGIDO: O construtor de fábrica agora aceita status e projeto para evitar erros.
-  factory GtdItem.newItem({
-    required String title,
-    String? description,
-    GtdStatus status = GtdStatus.inbox,
-    String? project,
-  }) {
+  factory GtdItem.newItem({required String title, String? description, GtdStatus status = GtdStatus.inbox}) {
     final now = DateTime.now();
     return GtdItem(
       id: const Uuid().v4(),
@@ -52,7 +46,6 @@ class GtdItem {
       status: status,
       createdAt: now,
       lastUpdatedAt: now,
-      project: project,
     );
   }
 
@@ -128,31 +121,81 @@ class GtdItem {
   }
 }
 
+@immutable
 class Project {
   final String id;
-  String name;
-  int totalMinutesSpent;
+  final String name;
+  final String? description;
+  final DateTime createdAt;
+  final DateTime lastUpdatedAt;
+  final int totalMinutesSpent;
+  final List<String> tags;
 
-  Project({
-    String? id,
+  const Project({
+    required this.id,
     required this.name,
+    this.description,
+    required this.createdAt,
+    required this.lastUpdatedAt,
     this.totalMinutesSpent = 0,
-  }) : id = id ?? const Uuid().v4();
+    this.tags = const [],
+  });
+  
+  factory Project.newProject({required String name}) {
+    final now = DateTime.now();
+    return Project(
+      id: const Uuid().v4(),
+      name: name,
+      createdAt: now,
+      lastUpdatedAt: now,
+    );
+  }
+
+  Project copyWith({
+    String? id,
+    String? name,
+    String? description,
+    DateTime? createdAt,
+    DateTime? lastUpdatedAt,
+    int? totalMinutesSpent,
+    List<String>? tags,
+  }) {
+    return Project(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      createdAt: createdAt ?? this.createdAt,
+      lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
+      totalMinutesSpent: totalMinutesSpent ?? this.totalMinutesSpent,
+      tags: tags ?? this.tags,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
+      'description': description,
+      'createdAt': createdAt.toIso8601String(),
+      'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'totalMinutesSpent': totalMinutesSpent,
+      'tags': jsonEncode(tags),
     };
   }
 
   factory Project.fromMap(Map<String, dynamic> map) {
+    // MODIFICADO: Lógica de fallback para datas se torna mais robusta para evitar erros com dados antigos.
+    final lastUpdate = map['lastUpdatedAt'] != null ? DateTime.parse(map['lastUpdatedAt']) : DateTime.now();
+    final creationDate = map['createdAt'] != null ? DateTime.parse(map['createdAt']) : lastUpdate;
+
     return Project(
       id: map['id'],
       name: map['name'],
-      totalMinutesSpent: map['totalMinutesSpent'],
+      description: map['description'],
+      createdAt: creationDate,
+      lastUpdatedAt: lastUpdate,
+      totalMinutesSpent: map['totalMinutesSpent'] ?? 0,
+      tags: map['tags'] != null ? (jsonDecode(map['tags']) as List).cast<String>().toList() : [],
     );
   }
 }
-

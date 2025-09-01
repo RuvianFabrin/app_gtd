@@ -5,22 +5,24 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../data/models.dart';
 import '../logic/gtd_service.dart';
-import 'gtd_pages.dart'; 
+import 'calendar_settings_dialog.dart';
+import 'gtd_pages.dart'; // Reutiliza o GtdItemListView
 
+// Enum para opções de ordenação
 enum SortOption { title, date }
 
-class ReferencePage extends StatefulWidget {
-  const ReferencePage({super.key});
+class CalendarPage extends StatefulWidget {
+  const CalendarPage({super.key});
 
   @override
-  State<ReferencePage> createState() => _ReferencePageState();
+  State<CalendarPage> createState() => _CalendarPageState();
 }
 
-class _ReferencePageState extends State<ReferencePage> {
+class _CalendarPageState extends State<CalendarPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   SortOption _sortOption = SortOption.date;
-  bool _isAscending = false;
+  bool _isAscending = true; // true = mais antigo para mais novo / A-Z
 
   @override
   void initState() {
@@ -41,10 +43,11 @@ class _ReferencePageState extends State<ReferencePage> {
   @override
   Widget build(BuildContext context) {
     final service = context.watch<GtdService>();
-    final items = _getFilteredAndSortedItems(service.referenceItems);
+    final items = _getFilteredAndSortedItems(service.calendarItems);
 
     return Column(
       children: [
+        // Seção de Pesquisa e Ordenação
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(
@@ -93,15 +96,19 @@ class _ReferencePageState extends State<ReferencePage> {
             ],
           ),
         ),
+        // Lista de itens
         Expanded(
           child: GtdItemListView(
             items: items,
-            emptyListMessage: "Nenhum item de referência encontrado.",
+            emptyListMessage: "Nenhum item agendado.",
             subtitleBuilder: (item) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildContentSubtitle(item),
+                  Text(
+                    item.dueDate != null ? DateFormat("dd/MM/yyyy 'às' HH:mm").format(item.dueDate!) : 'Sem data',
+                     style: const TextStyle(fontWeight: FontWeight.bold)
+                  ),
                   const SizedBox(height: 8),
                   if (item.tags.isNotEmpty)
                     Wrap(
@@ -122,33 +129,21 @@ class _ReferencePageState extends State<ReferencePage> {
                 ],
               );
             },
+             trailingActionsBuilder: (item) => [
+              IconButton(
+                icon: const Icon(Icons.alarm),
+                onPressed: () async {
+                  final updatedItem = await CalendarSettingsDialog.show(context, item);
+                  if (updatedItem != null && context.mounted) {
+                    await service.updateItem(updatedItem);
+                  }
+                },
+              )
+            ],
           ),
         ),
       ],
     );
-  }
-
-  // CORRIGIDO: Lógica de exibição do resumo do Quill ajustada
-  Widget _buildContentSubtitle(GtdItem item) {
-    if (item.description == null || item.description!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    try {
-      final doc = quill.Document.fromJson(jsonDecode(item.description!));
-      final plainText = doc.toPlainText().replaceAll('\n', ' ').trim();
-      if (plainText.isEmpty) return const SizedBox.shrink();
-      return Text(
-        plainText,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      );
-    } catch (e) {
-      return Text(
-        item.description!,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
   }
 
   List<GtdItem> _getFilteredAndSortedItems(List<GtdItem> allItems) {
@@ -166,7 +161,7 @@ class _ReferencePageState extends State<ReferencePage> {
       if (_sortOption == SortOption.title) {
         comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
       } else {
-        comparison = a.lastUpdatedAt.compareTo(b.lastUpdatedAt);
+        comparison = (a.dueDate ?? DateTime(0)).compareTo(b.dueDate ?? DateTime(0));
       }
       return _isAscending ? comparison : -comparison;
     });
@@ -174,7 +169,6 @@ class _ReferencePageState extends State<ReferencePage> {
     return filteredItems;
   }
   
-  // CORRIGIDO: Lógica de extração de texto do Quill para busca ajustada
   String _getContentForSearch(GtdItem item) {
     if (item.description == null || item.description!.isEmpty) return '';
     try {

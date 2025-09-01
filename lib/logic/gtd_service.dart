@@ -29,9 +29,9 @@ class GtdService extends ChangeNotifier {
 
   // --- Lógica de Itens GTD ---
   Future<void> addItem(GtdItem item) async {
-    final newItem = await _repository.createItem(item);
-    _items.add(newItem);
-    await _scheduleNotifications(newItem);
+    await _repository.createItem(item);
+    _items.add(item);
+    await _scheduleNotifications(item);
     notifyListeners();
   }
 
@@ -59,17 +59,30 @@ class GtdService extends ChangeNotifier {
 
   // --- Lógica de Projetos ---
   Future<void> addProject(String name) async {
-    final newProject = Project(name: name);
+    final newProject = Project.newProject(name: name);
     await _repository.createProject(newProject);
     _projects.add(newProject);
+    notifyListeners();
+  }
+
+   Future<void> updateProject(Project project) async {
+    await _repository.updateProject(project);
+    final index = _projects.indexWhere((p) => p.id == project.id);
+    if (index != -1) {
+      _projects[index] = project;
+    }
     notifyListeners();
   }
 
   Future<void> addTimeToProject(String projectId, int minutes) async {
     final index = _projects.indexWhere((p) => p.id == projectId);
     if (index != -1) {
-      _projects[index].totalMinutesSpent += minutes;
-      await _repository.updateProject(_projects[index]);
+      final oldProject = _projects[index];
+      final updatedProject = oldProject.copyWith(
+        totalMinutesSpent: oldProject.totalMinutesSpent + minutes
+      );
+      await _repository.updateProject(updatedProject);
+      _projects[index] = updatedProject;
       notifyListeners();
     }
   }
@@ -100,9 +113,11 @@ class GtdService extends ChangeNotifier {
     for (final item in _items) {
       tags.addAll(item.tags);
     }
+    for (final project in _projects){
+      tags.addAll(project.tags);
+    }
     return tags;
   }
-
 
   Map<String, List<GtdItem>> get calendarItemsGrouped {
     final sortedItems = calendarItems;
@@ -156,4 +171,13 @@ class GtdService extends ChangeNotifier {
       _items.where((i) => i.status == GtdStatus.somedayMaybe).toList();
   List<GtdItem> get referenceItems =>
       _items.where((i) => i.status == GtdStatus.reference).toList();
+      
+  // NOVO: Método para buscar tarefas de um projeto específico.
+  List<GtdItem> getTasksForProject(String projectId) {
+    return _items.where((item) {
+      return item.project == projectId &&
+          (item.status == GtdStatus.projectTask || item.status == GtdStatus.done);
+    }).toList();
+  }
 }
+
